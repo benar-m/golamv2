@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"golamv2/internal/domain"
+	"github.com/benar-m/golamv2/internal/domain"
 )
 
 // FastFileStorage implements high-performance file-based storage

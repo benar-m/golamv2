@@ -9,10 +9,10 @@ import (
 	"syscall"
 	"time"
 
-	"golamv2/internal/application"
-	"golamv2/internal/domain"
-	"golamv2/internal/infrastructure"
-	"golamv2/internal/interfaces"
+	"github.com/benar-m/golamv2/internal/application"
+	"github.com/benar-m/golamv2/internal/domain"
+	"github.com/benar-m/golamv2/internal/infrastructure"
+	"github.com/benar-m/golamv2/internal/interfaces"
 
 	"github.com/spf13/cobra"
 )

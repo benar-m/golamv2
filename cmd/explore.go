@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"golamv2/internal/domain"
+	"github.com/benar-m/golamv2/internal/domain"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/spf13/cobra"

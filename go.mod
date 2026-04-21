@@ -1,4 +1,4 @@
-module golamv2
+module github.com/benar-m/golamv2
 
 go 1.21
 

@@ -4,7 +4,7 @@ import (
 	"container/heap"
 	"sync"
 
-	"golamv2/internal/domain"
+	"github.com/benar-m/golamv2/internal/domain"
 )
 
 const (

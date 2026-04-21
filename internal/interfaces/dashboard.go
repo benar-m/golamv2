@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"golamv2/internal/domain"
-	"golamv2/pkg/metrics"
+	"github.com/benar-m/golamv2/internal/domain"
+	"github.com/benar-m/golamv2/pkg/metrics"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -58,7 +58,6 @@ func (d *Dashboard) Start() {
 	r.HandleFunc("/api/add-urls", d.handleAddURLs).Methods("POST")
 	r.HandleFunc("/api/db-view", d.handleDBView).Methods("GET") // New route for database view
 
-	// Main dashboard pages
 	r.HandleFunc("/", d.handleDashboard).Methods("GET")
 	r.HandleFunc("/db", d.handleDBDashboard).Methods("GET") // New route for database dashboard
 

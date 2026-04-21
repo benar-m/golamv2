@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golamv2/internal/domain"
+	"github.com/benar-m/golamv2/internal/domain"
 
 	"github.com/dgraph-io/badger/v4"
 )

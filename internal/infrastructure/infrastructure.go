@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"golamv2/internal/domain"
-	"golamv2/pkg/bloom"
-	"golamv2/pkg/metrics"
-	"golamv2/pkg/queue"
-	"golamv2/pkg/storage"
+	"github.com/benar-m/golamv2/internal/domain"
+	"github.com/benar-m/golamv2/pkg/bloom"
+	"github.com/benar-m/golamv2/pkg/metrics"
+	"github.com/benar-m/golamv2/pkg/queue"
+	"github.com/benar-m/golamv2/pkg/storage"
 )
 
 // Infrastructure holds all infrastructure components

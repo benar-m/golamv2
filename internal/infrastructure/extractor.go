@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"golamv2/internal/domain"
-	"golamv2/pkg/metrics"
+	"github.com/benar-m/golamv2/internal/domain"
+	"github.com/benar-m/golamv2/pkg/metrics"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -20,15 +20,14 @@ import (
 type ContentExtractor struct {
 	emailRegex      *regexp.Regexp
 	httpClient      *http.Client
-	deadLinkClient  *http.Client // Separate client with aggressive timeout for dead link checking
+	deadLinkClient  *http.Client
 	mu              sync.RWMutex
 	deadLinkCache   map[string]bool
-	deadDomainCache map[string]bool // Cache for domain-level checks
+	deadDomainCache map[string]bool
 
-	// Async dead link checking - results go directly to storage
 	linkQueue chan linkCheckRequest
-	storage   domain.Storage            // Direct access to storage for async updates
-	metrics   *metrics.MetricsCollector // Direct access to metrics for updates
+	storage   domain.Storage
+	metrics   *metrics.MetricsCollector
 	ctx       context.Context
 	cancel    context.CancelFunc
 	wg        sync.WaitGroup
@@ -54,22 +53,20 @@ func NewContentExtractor() *ContentExtractor {
 				return nil
 			},
 		},
-		// Aggressive timeout for dead link checking
 		deadLinkClient: &http.Client{
-			Timeout: 2 * time.Second, // Very fast timeout for dead link checks
+			Timeout: 2 * time.Second,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse // Don't follow redirects for speed
+				return http.ErrUseLastResponse
 			},
 		},
 		deadLinkCache:   make(map[string]bool),
 		deadDomainCache: make(map[string]bool),
-		linkQueue:       make(chan linkCheckRequest, 1000), // Buffered queue
+		linkQueue:       make(chan linkCheckRequest, 1000),
 		ctx:             ctx,
 		cancel:          cancel,
 	}
 
-	// Start background workers for async dead link checking
-	numWorkers := 3 // Reduced from 10 workers per page
+	numWorkers := 4
 	for i := 0; i < numWorkers; i++ {
 		extractor.wg.Add(1)
 		go extractor.asyncDeadLinkWorker()
@@ -195,19 +192,12 @@ func (e *ContentExtractor) ExtractTitle(content string) string {
 	return strings.TrimSpace(title)
 }
 
-// CheckDeadLinks queues links for async checking and returns empty results immediately
 func (e *ContentExtractor) CheckDeadLinks(links []string, sourceURL string) ([]string, []string) {
-	// Sample 20% of links for async processing
 	sampledLinks := e.sampleLinks(links, 0.2)
-
-	// Queue all sampled links for background processing
 	e.queueLinksForChecking(sampledLinks, sourceURL)
-
-	// Return empty results immediately - dead links will be stored in DB by async workers
 	return []string{}, []string{}
 }
 
-// sampleLinks randomly selects a percentage of links
 func (e *ContentExtractor) sampleLinks(links []string, percentage float64) []string {
 	if percentage >= 1.0 {
 		return links
@@ -215,14 +205,12 @@ func (e *ContentExtractor) sampleLinks(links []string, percentage float64) []str
 
 	numToSample := int(float64(len(links)) * percentage)
 	if numToSample == 0 && len(links) > 0 {
-		numToSample = 1 // Always sample at least 1 link if any exist
+		numToSample = 1
 	}
 
-	// Shuffle and take first N
 	shuffled := make([]string, len(links))
 	copy(shuffled, links)
 
-	// Simple Fisher-Yates shuffle
 	for i := len(shuffled) - 1; i > 0; i-- {
 		j := rand.Intn(i + 1)
 		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
@@ -298,22 +286,18 @@ func (e *ContentExtractor) Close() {
 	e.wg.Wait()
 }
 
-// processLinkAsync checks if a link is dead and stores result directly in database
 func (e *ContentExtractor) processLinkAsync(req linkCheckRequest) {
 	if e.storage == nil {
-		return // No storage available
+		return
 	}
 
-	// Extract domain first
 	domainName := domain.GetDomain(req.url)
 	if domainName == "" {
-		return // Invalid URL
+		return
 	}
 
-	// Check if domain is dead first (optimization)
 	isDomainDead := e.isDomainDead(domainName)
 	if isDomainDead {
-		// Domain is dead, so URL is automatically dead too
 		result := domain.CrawlResult{
 			URL:         req.sourceURL,
 			ProcessedAt: time.Now(),
@@ -323,7 +307,6 @@ func (e *ContentExtractor) processLinkAsync(req linkCheckRequest) {
 
 		e.storage.StoreResult(result)
 
-		// Update metrics if available
 		if e.metrics != nil {
 			e.metrics.UpdateDeadLinksFound(1)
 			e.metrics.UpdateDeadDomainsFound(1)
@@ -331,23 +314,19 @@ func (e *ContentExtractor) processLinkAsync(req linkCheckRequest) {
 		return
 	}
 
-	// Domain is alive, check specific URL
 	isURLDead := e.isDeadLinkFast(req.url)
 	if isURLDead {
-		// URL is dead but domain is alive
 		result := domain.CrawlResult{
 			URL:         req.sourceURL,
 			ProcessedAt: time.Now(),
 			DeadLinks:   []string{req.url},
-			DeadDomains: []string{}, // Domain is NOT dead
+			DeadDomains: []string{},
 		}
 
 		e.storage.StoreResult(result)
 
-		// Update metrics if available
 		if e.metrics != nil {
 			e.metrics.UpdateDeadLinksFound(1)
-			// Don't increment dead domains since domain is alive
 		}
 	}
 }

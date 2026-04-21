@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"golamv2/cmd"
+	"github.com/benar-m/golamv2/cmd"
 )
 
 func main() {

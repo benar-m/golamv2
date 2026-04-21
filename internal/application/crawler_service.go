@@ -11,13 +11,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golamv2/internal/domain"
-	"golamv2/internal/infrastructure"
+	"github.com/benar-m/golamv2/internal/domain"
+	"github.com/benar-m/golamv2/internal/infrastructure"
 
 	"golang.org/x/time/rate"
 )
 
-// CrawlerService implements the main crawler application logic
 type CrawlerService struct {
 	infra            *infrastructure.Infrastructure
 	mode             domain.CrawlMode
@@ -25,27 +24,24 @@ type CrawlerService struct {
 	activeWorkers    int64
 	httpClient       *http.Client
 	rateLimiter      *rate.Limiter
-	checkDeadDomains bool // Track if --domains flag was explicitly passed
+	checkDeadDomains bool
 }
 
-// NewCrawlerService creates a new crawler service
 func NewCrawlerService(infra *infrastructure.Infrastructure, mode domain.CrawlMode, keywords []string, checkDeadDomains bool) *CrawlerService {
 	transport := &http.Transport{
-		// Connection limits - CRITICAL FIX for aggressive domains
-		MaxIdleConnsPerHost: 25,  // Allow 25 idle connections per host (default: 2)
-		MaxConnsPerHost:     50,  // Allow 50 total connections per host (default: unlimited but throttled)
-		MaxIdleConns:        100, // Total idle connections across all hosts (default: 100)
+		MaxIdleConnsPerHost: 25,
+		MaxConnsPerHost:     50,
+		MaxIdleConns:        100,
 
-		// Timeout settings for better performance
 		DialContext: (&net.Dialer{
-			Timeout:   3 * time.Second,  // Connection timeout
-			KeepAlive: 30 * time.Second, // Keep connections alive
+			Timeout:   3 * time.Second,
+			KeepAlive: 30 * time.Second,
 		}).DialContext,
-		TLSHandshakeTimeout:   3 * time.Second,  // TLS handshake timeout
-		ResponseHeaderTimeout: 5 * time.Second,  // Response header timeout
-		IdleConnTimeout:       90 * time.Second, // Idle connection timeout
+		TLSHandshakeTimeout:   3 * time.Second,
+		ResponseHeaderTimeout: 5 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
 
-		DisableCompression: false, // Keep compression for bandwidth efficiency^
+		DisableCompression: false,
 	}
 
 	return &CrawlerService{
@@ -54,14 +50,13 @@ func NewCrawlerService(infra *infrastructure.Infrastructure, mode domain.CrawlMo
 		keywords:         keywords,
 		checkDeadDomains: checkDeadDomains,
 		httpClient: &http.Client{
-			Timeout:   5 * time.Second, // 5 second timeout
+			Timeout:   5 * time.Second,
 			Transport: transport,
 		},
 		rateLimiter: rate.NewLimiter(rate.Limit(200), 200),
 	}
 }
 
-// StartCrawling starts the crawling process
 func (c *CrawlerService) StartCrawling(ctx context.Context, startURL string, maxWorkers, maxDepth int) error {
 	startTask := domain.URLTask{
 		URL:       startURL,
@@ -96,7 +91,6 @@ func (c *CrawlerService) StartCrawling(ctx context.Context, startURL string, max
 	return nil
 }
 
-// worker implements the main crawler worker logic
 func (c *CrawlerService) worker(ctx context.Context, workerID, maxDepth int) {
 	defer atomic.AddInt64(&c.activeWorkers, -1)
 	atomic.AddInt64(&c.activeWorkers, 1)
@@ -109,7 +103,6 @@ func (c *CrawlerService) worker(ctx context.Context, workerID, maxDepth int) {
 			// Try to get a URL from the queue
 			task, err := c.infra.URLQueue.Pop()
 			if err != nil {
-				// Queue is empty, wait a bit and try again (reduced from 100ms)
 				time.Sleep(10 * time.Millisecond)
 				continue
 			}
@@ -120,7 +113,6 @@ func (c *CrawlerService) worker(ctx context.Context, workerID, maxDepth int) {
 	}
 }
 
-// processes a single URL
 func (c *CrawlerService) processURL(ctx context.Context, task domain.URLTask, maxDepth int) {
 	startTime := time.Now()
 
@@ -214,14 +206,12 @@ func (c *CrawlerService) processURL(ctx context.Context, task domain.URLTask, ma
 		c.infra.Metrics.UpdateKeywordsFound(keywordCount)
 	}
 
-	// Extract new URLs for crawling if not at max depth)
 	if task.Depth < maxDepth {
 		newURLs := c.infra.ContentExtractor.ExtractLinks(content, task.URL)
 		result.NewURLs = c.addNewURLs(newURLs, task.Depth+1)
 	}
 }
 
-// fetches content from a URL
 func (c *CrawlerService) fetchURL(url string) (string, int, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -241,12 +231,9 @@ func (c *CrawlerService) fetchURL(url string) (string, int, error) {
 	contentType := resp.Header.Get("Content-Type")
 	if contentType != "" && !strings.Contains(strings.ToLower(contentType), "text/html") &&
 		!strings.Contains(strings.ToLower(contentType), "application/xhtml") {
-		// Skip non-HTML content (images, PDFs, videos, etc.)
 		return "", resp.StatusCode, fmt.Errorf("skipped non-HTML content: %s", contentType)
 	}
 
-	// Reduced response size limit to prevent memory issues (max 2MB) - Not Guaranteed to be enough for all pages, but just better than 10MB
-	// This prevents 50 workers * 2MB = 100MB max instead of 500MB
 	limitedReader := io.LimitReader(resp.Body, 2*1024*1024)
 	content, err := io.ReadAll(limitedReader)
 	if err != nil {
@@ -256,7 +243,6 @@ func (c *CrawlerService) fetchURL(url string) (string, int, error) {
 	return string(content), resp.StatusCode, nil
 }
 
-// addNewURLs adds new URLs to the crawling queue
 func (c *CrawlerService) addNewURLs(urls []string, depth int) []string {
 	var newURLs []string
 
@@ -293,7 +279,6 @@ func (c *CrawlerService) addNewURLs(urls []string, depth int) []string {
 	return newURLs
 }
 
-// periodically updates metrics
 func (c *CrawlerService) updateMetrics(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -309,7 +294,6 @@ func (c *CrawlerService) updateMetrics(ctx context.Context) {
 			// Update queue size
 			c.infra.Metrics.UpdateURLsInQueue(int64(c.infra.URLQueue.Size()))
 
-			// Get metrics from storage and update
 			if storageMetrics, err := c.infra.Storage.GetMetrics(); err == nil {
 				c.infra.Metrics.UpdateURLsInDB(storageMetrics.URLsInDB)
 			}
@@ -317,8 +301,6 @@ func (c *CrawlerService) updateMetrics(ctx context.Context) {
 	}
 }
 
-// shouldCheckDeadLinks determines if dead link checking should be enabled
-// This checks if the --domains flag was explicitly passed, even in "all" mode
 func (c *CrawlerService) shouldCheckDeadLinks() bool {
 	return c.checkDeadDomains || c.mode == "domains"
 }
